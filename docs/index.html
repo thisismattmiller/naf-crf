@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NAF CRF demo</title>
+  <style>
+    body { font: 14px/1.4 system-ui, -apple-system, sans-serif; margin: 2em; max-width: 960px; }
+    h1 { font-size: 1.3em; margin-bottom: 0.3em; }
+    .sub { color: #666; margin-bottom: 1.5em; font-size: 0.9em; }
+    textarea { width: 100%; box-sizing: border-box; min-height: 4em; font-family: ui-monospace, monospace; padding: 0.5em; }
+    button { padding: 0.4em 1em; font-size: 14px; margin-top: 0.5em; }
+    .row { margin: 1.5em 0; }
+    .label { font-weight: 600; margin-bottom: 0.3em; }
+    .marc { font-family: ui-monospace, monospace; padding: 0.6em 0.8em; background: #f5f5f5; border-radius: 4px; white-space: pre-wrap; word-break: break-all; }
+    .header { font-family: ui-monospace, monospace; }
+    table { border-collapse: collapse; }
+    td { padding: 2px 8px; vertical-align: top; }
+    .tok { font-family: ui-monospace, monospace; }
+    .tag { font-family: ui-monospace, monospace; color: #444; font-size: 12px; }
+    .a  { background: #e3f2fd; }
+    .d  { background: #fff3e0; }
+    .b  { background: #e8f5e9; }
+    .c  { background: #fce4ec; }
+    .t  { background: #f3e5f5; }
+    .l  { background: #fff9c4; }
+    .n  { background: #e0f7fa; }
+    .p  { background: #efebe9; }
+    .q  { background: #f1f8e9; }
+    .other { background: #eee; }
+    .examples li { cursor: pointer; color: #2563eb; margin: 0.15em 0; }
+    .examples li:hover { text-decoration: underline; }
+    #status { color: #999; font-size: 0.85em; margin-top: 0.5em; }
+    footer { margin-top: 3em; color: #999; font-size: 0.85em; }
+    footer a { color: #2563eb; }
+  </style>
+</head>
+<body>
+  <h1>NAF CRF — predict MARC fields from a clean label</h1>
+  <div class="sub">Type or paste an authoritative label. The browser-side CRF predicts the field number, indicators, and subfield boundaries. No server.</div>
+
+  <textarea id="input" placeholder="e.g.  Smith, John, 1962-"></textarea>
+  <button id="go">Tag</button>
+  <div id="status">Loading model …</div>
+
+  <div class="examples">
+    <div class="label">Try one:</div>
+    <ul>
+      <li>Canali, Roger, 1961-</li>
+      <li>Heilig-Geist-Kirche (Landshut, Germany)</li>
+      <li>Conference on Analytic Number Theory (1989 : Allerton Park, Ill.)</li>
+      <li>Bible. Genesis. English. Selections</li>
+      <li>Mai, Kurt</li>
+      <li>Stella, Frank. Moby Dick series</li>
+      <li>United States. Department of Defense. Office of the Secretary</li>
+    </ul>
+  </div>
+
+  <div class="row">
+    <div class="label">Predicted header</div>
+    <div class="header" id="header">—</div>
+  </div>
+  <div class="row">
+    <div class="label">Reassembled MARC</div>
+    <div class="marc" id="marc">—</div>
+  </div>
+  <div class="row">
+    <div class="label">Tokens &amp; tags</div>
+    <table id="toks"></table>
+  </div>
+
+  <footer>
+    Source &amp; training pipeline: <a href="https://github.com/thisismattmiller/naf-crf">github.com/thisismattmiller/naf-crf</a>
+  </footer>
+
+  <script src="naf_crf.js"></script>
+  <script>
+  (async () => {
+    const status = document.getElementById("status");
+    let model;
+    try {
+      const t0 = performance.now();
+      model = await NafCRF.load("model.json.gz");
+      const t1 = performance.now();
+      status.textContent = `Model loaded in ${Math.round(t1 - t0)} ms.`;
+    } catch (e) {
+      status.textContent = "Model load failed: " + e.message;
+      return;
+    }
+
+    const input = document.getElementById("input");
+    const go = document.getElementById("go");
+    const headerEl = document.getElementById("header");
+    const marcEl = document.getElementById("marc");
+    const toksEl = document.getElementById("toks");
+
+    function colorClass(tag) {
+      if (tag === "O") return "other";
+      const code = tag.slice(2);
+      if (["a","d","b","c","t","l","n","p","q"].includes(code)) return code;
+      return "other";
+    }
+
+    function run() {
+      const txt = input.value;
+      if (!txt.trim()) return;
+      const t0 = performance.now();
+      const r = model.tag(txt);
+      const t1 = performance.now();
+      headerEl.textContent = r.header || "(none)";
+      marcEl.textContent = r.marc || "(empty)";
+      toksEl.innerHTML = "";
+      for (let i = 0; i < r.tokens.length; i++) {
+        const tr = document.createElement("tr");
+        const td1 = document.createElement("td"); td1.className = "tok " + colorClass(r.tags[i]);
+        td1.textContent = r.tokens[i];
+        const td2 = document.createElement("td"); td2.className = "tag";
+        td2.textContent = r.tags[i];
+        tr.append(td1, td2);
+        toksEl.append(tr);
+      }
+      status.textContent = `Tagged ${r.tokens.length} tokens in ${(t1 - t0).toFixed(1)} ms.`;
+    }
+
+    go.addEventListener("click", run);
+    input.addEventListener("keydown", e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); run(); } });
+    document.querySelectorAll(".examples li").forEach(li => {
+      li.addEventListener("click", () => { input.value = li.textContent; run(); });
+    });
+  })();
+  </script>
+</body>
+</html>
