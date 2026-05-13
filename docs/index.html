@@ -65,6 +65,10 @@
     <div class="marc" id="marc">—</div>
   </div>
   <div class="row">
+    <div class="label">Post-CRF rules fired</div>
+    <div id="rules">—</div>
+  </div>
+  <div class="row">
     <div class="label">Tokens &amp; tags</div>
     <table id="toks"></table>
   </div>
@@ -92,6 +96,7 @@
     const go = document.getElementById("go");
     const headerEl = document.getElementById("header");
     const marcEl = document.getElementById("marc");
+    const rulesEl = document.getElementById("rules");
     const toksEl = document.getElementById("toks");
 
     function colorClass(tag) {
@@ -109,6 +114,7 @@
       const t1 = performance.now();
       headerEl.textContent = r.header || "(none)";
       marcEl.textContent = r.marc || "(empty)";
+      rulesEl.textContent = (r.rulesFired && r.rulesFired.length) ? r.rulesFired.join(", ") : "(none)";
       toksEl.innerHTML = "";
       for (let i = 0; i < r.tokens.length; i++) {
         const tr = document.createElement("tr");
